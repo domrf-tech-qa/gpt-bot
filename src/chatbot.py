@@ -83,10 +83,11 @@ def clear_image(message):
     :param message:
     Функция очистки вложений для пользователя по команде /clearAttachments
     '''
-    all_files = content_functions.get_files()
-    for x in all_files:
-        if re.match(message.from_user.username + '.*', x) is not None:
-            os.remove(x)
+    attach = pg_queries.get_attachments_by_user(message)
+    for x in attach:
+        os.remove(x[1])
+        pg_queries.delete_attachments_by_id(x[0])
+
     bot.send_message(message.chat.id, config['bot_messages']['clear_attachments'])
 
 
@@ -496,6 +497,7 @@ def schedule_func():
     '''
     try:
         schedule.every(12).hours.do(pg_queries.delete_session_job)
+        schedule.every(12).hours.do(content_functions.delete_attach_job)
         while True:
             time.sleep(5)
             schedule.run_pending()

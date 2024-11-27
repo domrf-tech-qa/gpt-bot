@@ -1,3 +1,5 @@
+import uuid
+
 import psycopg2
 from . import log
 import yaml
@@ -14,7 +16,7 @@ class Postgres:
 
     def __read_props(self):
         '''
-        Инициализация подключения к БД, берем данные для подключения из config.yaml 
+        Инициализация подключения к БД, берем данные для подключения из config.yaml
         '''
         with open("config.yaml", "r", encoding="utf8") as f:
             config = yaml.load(f, Loader=yaml.FullLoader)
@@ -36,10 +38,10 @@ class Postgres:
 
     def insert_pg(self, insert_query, record_to_insert):
         '''
-        :param insert_query: 
-        :param record_to_insert: 
+        :param insert_query:
+        :param record_to_insert:
         Функция выполнения insert запроса в БД по переданному sql (insert_query)
-        и данных для записи (record_to_insert) 
+        и данных для записи (record_to_insert)
         '''
         with self.get_connection() as connection, connection.cursor() as cursor:
             try:
@@ -50,7 +52,7 @@ class Postgres:
 
     def select_pg(self, select_query):
         '''
-        :param select_query: 
+        :param select_query:
         :return: records (Возвращаем результирующую выборку по SQL запросу)
         Функция выполнения select запроса в БД по переданному sql (select_query)
         '''
@@ -66,21 +68,21 @@ class Postgres:
 
     def update_pg(self, update_query, record_to_update):
         '''
-        :param update_query: 
-        :param record_to_update: 
+        :param update_query:
+        :param record_to_update:
         Функция выполнения update запроса в БД по переданному sql (update_query)
-        и данных для записи (record_to_update) 
+        и данных для записи (record_to_update)
         '''
         with self.get_connection() as connection, connection.cursor() as cursor:
             try:
                 cursor.execute(update_query, record_to_update)
                 logger.info('Records updated successfully')
             except (Exception, psycopg2.Error) as error:
-                logger.error('Failed to insert record into table', error)
+                logger.error('Failed to update records', error)
 
     def delete_pg(self, delete_query):
         '''
-        :param delete_query: 
+        :param delete_query:
         Функция выполнения delete запроса в БД по переданному sql (delete_query)
         '''
         with self.get_connection() as connection, connection.cursor() as cursor:
@@ -92,7 +94,7 @@ class Postgres:
 
     def create_pg(self, create_query):
         '''
-        :param delete_query: 
+        :param delete_query:
         Функция выполнения create запроса в БД по переданному sql (create_query)
         '''
         with self.get_connection() as connection, connection.cursor() as cursor:
@@ -119,6 +121,24 @@ class Postgres:
         link = self.select_pg(scripts.select_link_script.format(message.from_user.username))
         return link[0][0]
 
+    def get_attachments(self):
+        current_date = datetime.today().strftime('%Y-%m-%d')
+        attach = self.select_pg(scripts.select_attach_script.format(current_date))
+        return attach
+
+    def get_attachments_by_user(self, message):
+        attach = self.select_pg(scripts.select_attach_by_user_script.format(message.from_user.username))
+        return attach
+
+    def get_count_attachments_by_user(self, message):
+        attach_count = self.select_pg(scripts.select_count_attach_by_user_script.format(message.from_user.username))
+        return attach_count
+
+    def delete_attachments_by_id(self, id):
+        postgres_update_query = scripts.update_attach_script.format(id)
+        record_to_update = 'T'
+        self.update_pg(postgres_update_query, record_to_update)
+
     def delete_session(self, message):
         self.delete_pg(scripts.delete_session_script.format(message.from_user.username))
 
@@ -137,6 +157,12 @@ class Postgres:
         now = datetime.now()
         record_to_insert = (message.from_user.username, token, now)
         self.insert_pg(scripts.insert_auth_script.format(field), record_to_insert)
+
+    def write_attach(self, message, attach):
+        now = datetime.now()
+        id = str(uuid.uuid4())
+        record_to_insert = (id, message.from_user.username, attach, 'F', now)
+        self.insert_pg(scripts.insert_attach_script, record_to_insert)
 
     def update_auth(self, message, token, field):
         now = datetime.now()
